@@ -6,11 +6,10 @@ struct ColorsView: View {
 
     @State private var themes: [ColorTheme] = []
     @State private var current: [GameColor: RGB] = ColorTheme.tlgDefault.colors
-    @State private var selectedID: ColorTheme.ID?
     @State private var loaded = false
 
     private var selected: ColorTheme? {
-        themes.first { $0.id == selectedID }
+        themes.first { $0.id == model.colorSelection }
     }
 
     private var activeTheme: ColorTheme? {
@@ -30,7 +29,8 @@ struct ColorsView: View {
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        @Bindable var model = model
+        return VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Colour Scheme").font(.title2.bold())
                 Spacer()
@@ -43,7 +43,7 @@ struct ColorsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            List(themes, selection: $selectedID) { theme in
+            List(themes, selection: $model.colorSelection) { theme in
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(theme.name)
@@ -105,7 +105,10 @@ struct ColorsView: View {
         }
         // Without an installed version there is still one scheme to offer.
         themes = found.isEmpty ? [.tlgDefault] : found
-        selectedID = activeTheme?.id ?? themes.first?.id
+        // Keep a selection made on an earlier visit; default to the active theme.
+        if selected == nil {
+            model.colorSelection = activeTheme?.id ?? themes.first?.id
+        }
     }
 
     private func refreshCurrent() {

@@ -2,15 +2,37 @@ import SwiftUI
 import Combine
 import TLGLauncherCore
 
+/// Blocks app termination while the Fonts pane holds unsaved edits.
+@MainActor
+final class QuitGuard: NSObject, NSApplicationDelegate {
+    var hasUnsavedChanges: () -> Bool = { false }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard hasUnsavedChanges() else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = "Unsaved font changes"
+        alert.informativeText = "The Fonts pane has changes that have not been saved to the game configuration. They will be lost if you quit now."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Quit Anyway")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+}
+
 @main
 struct TLGLauncherApp: App {
     @State private var model = AppModel()
+    @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 
     var body: some Scene {
         WindowGroup("TLG Launcher") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 860, minHeight: 560)
+                .onAppear {
+                    let model = self.model
+                    quitGuard.hasUnsavedChanges = { model.fontsDraft?.dirty == true }
+                }
                 .task {
                     await model.checkForUpdates()
                 }

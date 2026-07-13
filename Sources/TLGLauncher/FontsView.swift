@@ -32,33 +32,74 @@ enum FontTarget: String, CaseIterable, Identifiable {
     }
 }
 
+/// The Fonts pane's working copy. AppModel holds it so unsaved edits survive
+/// pane switches (the detail view is destroyed on every sidebar change);
+/// `dirty` also drives the unsaved-changes dot in the sidebar.
+@MainActor
+@Observable
+final class FontsDraft {
+    var config: FontsConfig = .tlgDefault
+    var target: FontTarget = .interface
+    var optionValues: [FontOption: String] = [:]
+    var importedFonts: [FontFile] = []
+    var bundledFonts: [FontFile] = []
+    var dirty = false
+
+    func load(model: AppModel) {
+        do {
+            config = try model.fontStore.loadFonts()
+        } catch {
+            model.alertMessage = String(describing: error)
+        }
+        for option in FontOption.allCases {
+            optionValues[option] = (try? model.fontStore.optionValue(option)) ?? option.tlgDefault
+        }
+        refreshCatalogs(model: model)
+        dirty = false
+    }
+
+    func refreshCatalogs(model: AppModel) {
+        importedFonts = FontCatalog.importedFonts(paths: model.paths)
+        bundledFonts = model.store.activeAppBundle().map(FontCatalog.bundledFonts(appBundle:)) ?? []
+    }
+}
+
 struct FontsView: View {
     @Environment(AppModel.self) private var model
 
-    @State private var config: FontsConfig = .tlgDefault
-    @State private var target: FontTarget = .interface
-    @State private var optionValues: [FontOption: String] = [:]
-    @State private var importedFonts: [FontFile] = []
-    @State private var bundledFonts: [FontFile] = []
+    var body: some View {
+        if let draft = model.fontsDraft {
+            FontsEditor(draft: draft)
+        } else {
+            Color.clear.onAppear {
+                let draft = FontsDraft()
+                draft.load(model: model)
+                model.fontsDraft = draft
+            }
+        }
+    }
+}
+
+struct FontsEditor: View {
+    @Environment(AppModel.self) private var model
+    @Bindable var draft: FontsDraft
     @State private var showSystemFontPicker = false
-    @State private var dirty = false
-    @State private var loaded = false
 
     private var stack: [String] {
-        switch target {
-        case .interface: return config.typeface
-        case .map: return config.mapTypeface
-        case .overmap: return config.overmapTypeface
+        switch draft.target {
+        case .interface: return draft.config.typeface
+        case .map: return draft.config.mapTypeface
+        case .overmap: return draft.config.overmapTypeface
         }
     }
 
     private func setStack(_ new: [String]) {
-        switch target {
-        case .interface: config.typeface = new
-        case .map: config.mapTypeface = new
-        case .overmap: config.overmapTypeface = new
+        switch draft.target {
+        case .interface: draft.config.typeface = new
+        case .map: draft.config.mapTypeface = new
+        case .overmap: draft.config.overmapTypeface = new
         }
-        dirty = true
+        draft.dirty = true
     }
 
     var body: some View {
@@ -71,14 +112,16 @@ struct FontsView: View {
             Divider()
             FontPreviewPane(
                 reference: stack.first,
-                pointSize: Double(optionValues[target.sizeOption] ?? "16") ?? 16,
-                blending: optionValues[.fontBlending] == "true",
+                pointSize: Double(draft.optionValues[draft.target.sizeOption] ?? "16") ?? 16,
+                blending: draft.optionValues[.fontBlending] == "true",
                 paths: model.paths,
                 appBundle: model.store.activeAppBundle()
             )
             .frame(minWidth: 280, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear { if !loaded { load() } }
+        // Pick up external changes (backup restores, in-game edits) on each
+        // visit — but never clobber edits in progress.
+        .onAppear { if !draft.dirty { draft.load(model: model) } }
     }
 
     private var controls: some View {
@@ -86,11 +129,17 @@ struct FontsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Fonts").font(.title2.bold())
+                    if draft.dirty {
+                        Text("Unsaved changes")
+                            .font(.caption.bold())
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(.orange.opacity(0.2), in: Capsule())
+                    }
                     Spacer()
                     StatusBadge(running: model.gameRunning)
                 }
 
-                Picker("Configure", selection: $target) {
+                Picker("Configure", selection: $draft.target) {
                     ForEach(FontTarget.allCases) { t in
                         Text(t.rawValue).tag(t)
                     }
@@ -141,11 +190,11 @@ struct FontsView: View {
                     .padding(6)
                 }
 
-                GroupBox("Dimensions (\(target.rawValue.lowercased()))") {
+                GroupBox("Dimensions (\(draft.target.rawValue.lowercased()))") {
                     Grid(alignment: .leading, verticalSpacing: 8) {
-                        dimensionRow("Width", option: target.widthOption)
-                        dimensionRow("Height", option: target.heightOption)
-                        dimensionRow("Point size", option: target.sizeOption)
+                        dimensionRow("Width", option: draft.target.widthOption)
+                        dimensionRow("Height", option: draft.target.heightOption)
+                        dimensionRow("Point size", option: draft.target.sizeOption)
                     }
                     .padding(6)
                 }
@@ -162,7 +211,9 @@ struct FontsView: View {
                 HStack {
                     Button("Save Changes") { save() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!dirty || model.gameRunning)
+                        .disabled(!draft.dirty || model.gameRunning)
+                    Button("Discard Changes") { draft.load(model: model) }
+                        .disabled(!draft.dirty)
                     Button("Reset to TLG Defaults") { resetToDefaults() }
                         .disabled(model.gameRunning)
                     Spacer()
@@ -185,16 +236,16 @@ struct FontsView: View {
 
     @ViewBuilder
     private func fontMenuItems(action: @escaping (String) -> Void) -> some View {
-        if !importedFonts.isEmpty {
+        if !draft.importedFonts.isEmpty {
             Section("Imported fonts") {
-                ForEach(importedFonts) { font in
+                ForEach(draft.importedFonts) { font in
                     Button(font.displayName) { action(font.configReference) }
                 }
             }
         }
-        if !bundledFonts.isEmpty {
+        if !draft.bundledFonts.isEmpty {
             Section("Bundled TLG fonts") {
-                ForEach(bundledFonts) { font in
+                ForEach(draft.bundledFonts) { font in
                     Button(font.displayName) { action(font.configReference) }
                 }
             }
@@ -210,8 +261,8 @@ struct FontsView: View {
             TextField(
                 "",
                 text: Binding(
-                    get: { optionValues[option] ?? option.tlgDefault },
-                    set: { optionValues[option] = $0.filter(\.isNumber); dirty = true }
+                    get: { draft.optionValues[option] ?? option.tlgDefault },
+                    set: { draft.optionValues[option] = $0.filter(\.isNumber); draft.dirty = true }
                 )
             )
             .frame(width: 64)
@@ -220,8 +271,8 @@ struct FontsView: View {
             Stepper(
                 "",
                 value: Binding(
-                    get: { Int(optionValues[option] ?? option.tlgDefault) ?? 16 },
-                    set: { optionValues[option] = String(max(4, min(100, $0))); dirty = true }
+                    get: { Int(draft.optionValues[option] ?? option.tlgDefault) ?? 16 },
+                    set: { draft.optionValues[option] = String(max(4, min(100, $0))); draft.dirty = true }
                 ),
                 in: 4...100
             )
@@ -231,48 +282,29 @@ struct FontsView: View {
 
     private func optionBinding(_ option: FontOption) -> Binding<Bool> {
         Binding(
-            get: { (optionValues[option] ?? option.tlgDefault) == "true" },
-            set: { optionValues[option] = $0 ? "true" : "false"; dirty = true }
+            get: { (draft.optionValues[option] ?? option.tlgDefault) == "true" },
+            set: { draft.optionValues[option] = $0 ? "true" : "false"; draft.dirty = true }
         )
     }
 
     // MARK: Actions
 
-    private func load() {
-        loaded = true
-        do {
-            config = try model.fontStore.loadFonts()
-        } catch {
-            model.alertMessage = String(describing: error)
-        }
-        for option in FontOption.allCases {
-            optionValues[option] = (try? model.fontStore.optionValue(option)) ?? option.tlgDefault
-        }
-        refreshCatalogs()
-        dirty = false
-    }
-
-    private func refreshCatalogs() {
-        importedFonts = FontCatalog.importedFonts(paths: model.paths)
-        bundledFonts = model.store.activeAppBundle().map(FontCatalog.bundledFonts(appBundle:)) ?? []
-    }
-
     private func save() {
         do {
-            try model.fontStore.saveFonts(config)
-            try model.fontStore.setOptions(optionValues)
-            dirty = false
+            try model.fontStore.saveFonts(draft.config)
+            try model.fontStore.setOptions(draft.optionValues)
+            draft.dirty = false
         } catch {
             model.alertMessage = String(describing: error)
         }
     }
 
     private func resetToDefaults() {
-        config = .tlgDefault
+        draft.config = .tlgDefault
         for option in FontOption.allCases {
-            optionValues[option] = option.tlgDefault
+            draft.optionValues[option] = option.tlgDefault
         }
-        dirty = true
+        draft.dirty = true
         save()
     }
 
@@ -293,7 +325,7 @@ struct FontsView: View {
     private func importAndUse(url: URL) {
         do {
             let imported = try FontCatalog.importFont(from: url, paths: model.paths)
-            refreshCatalogs()
+            draft.refreshCatalogs(model: model)
             var s = stack
             s.removeAll { $0 == imported.configReference }
             s.insert(imported.configReference, at: 0)

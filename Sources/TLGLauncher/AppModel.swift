@@ -32,6 +32,11 @@ final class AppModel {
     // Errors surfaced to the UI
     var alertMessage: String?
 
+    // Pane state that must survive sidebar switches (the detail view is
+    // destroyed on every selection change).
+    var fontsDraft: FontsDraft?
+    var colorSelection: ColorTheme.ID?
+
     // Settings
     var retainedVersions: Int {
         get { max(0, UserDefaults.standard.integer(forKey: "retainedVersions")) }

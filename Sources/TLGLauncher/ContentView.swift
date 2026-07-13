@@ -35,7 +35,15 @@ struct ContentView: View {
         @Bindable var model = model
         NavigationSplitView {
             List(SidebarItem.allCases, selection: $selection) { item in
-                Label(item.rawValue, systemImage: item.systemImage).tag(item)
+                HStack {
+                    Label(item.rawValue, systemImage: item.systemImage)
+                    Spacer()
+                    if item == .fonts, model.fontsDraft?.dirty == true {
+                        Circle().fill(.orange).frame(width: 7, height: 7)
+                            .help("Unsaved font changes")
+                    }
+                }
+                .tag(item)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190)
         } detail: {
