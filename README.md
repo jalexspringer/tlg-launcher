@@ -35,3 +35,18 @@ Scripts/make-dmg.sh              # package the app as a drag-to-install DMG
 
 `swift run TLGLauncher` also works for development; the guide is picked up
 from `GuideDist/` in the working directory.
+
+## Credits
+
+Cataclysm: The Last Generation is created by
+[worm girl](https://www.youtube.com/@worm-girl) and contributors —
+[cataclysmtlg.com](https://cataclysmtlg.com/),
+[Cataclysm-TLG on GitHub](https://github.com/Cataclysm-TLG/Cataclysm-TLG).
+The artwork shown in the launcher is from the TLG project. This launcher is
+an independent fan tool, not an official TLG release.
+
+## Licence
+
+[CC BY-SA 4.0](LICENSE), matching the game's own CC-BY-SA licensing (the
+repository redistributes TLG artwork, which stays under the game project's
+terms and attribution).
