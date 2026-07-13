@@ -15,8 +15,9 @@ Consequences:
 
 - **TLGLauncherCore** — all behaviour, UI-free, fully testable.
 - **TLGLauncher** — SwiftUI app: observable `AppModel` + one view per sidebar
-  section (Play, Releases, Backups, Fonts, Guide, Settings).
-- **TLGLauncherChecks** — the check suite (22 checks).
+  section (Play, Releases, Backups, Fonts, Colours, Tilesets, Sound, Guide,
+  Settings).
+- **TLGLauncherChecks** — the check suite.
 
 ## Core services
 
@@ -32,8 +33,11 @@ Consequences:
 | `BackupManager` | Timestamped full copies of the TLG user dir (APFS clones), restore with safety copy, auto-prune | filesystem |
 | `GameProcessDetector` | `pgrep -f` on `cataclysm-tlg` / the Steam path — bundle id is useless, TLG shares `com.cataclysmdda.en.cataclysm` with CDDA | `ProcessRunning` |
 | `GameLauncher` | Launch plan + spawn | pure planning, `Process` |
-| `FontConfigStore` | `fonts.json` / `options.json` edits preserving unknown fields and order; backup before write; refuse while running | filesystem |
+| `GameOptionsStore` | `options.json` edits by entry name, preserving unknown fields and order; backup before write; refuse while running | filesystem |
+| `FontConfigStore` | `fonts.json` edits (same guarantees); font entries of `options.json` via `GameOptionsStore` | filesystem |
 | `FontCatalog` | Bundled/imported/system font enumeration, import with collision handling | CoreText, filesystem |
+| `ColorThemeStore` | `base_colors.json` read/apply from the game's `data/raw/color_themes` presets | filesystem |
+| `TilesetCatalog` / `SoundpackCatalog` | Enumerate bundle + user packs (user shadows bundled by NAME), validate and install folders into the persistent user dirs | filesystem |
 | `GuideServer` | Loopback static server for the bundled guide | Network.framework |
 
 `LauncherPaths` derives every path from two injectable roots (launcher support
@@ -75,7 +79,7 @@ it spawns `Contents/Resources/cataclysm-tlg-tiles` directly with that working
 directory and environment, adding `--userdir "<canonical dir>/"` (trailing
 slash required; TLG string-concatenates onto it).
 
-## Fonts
+## Game configuration (Fonts, Colours, Tilesets, Sound)
 
 `fonts.json` holds three typeface stacks (`typeface`, `map_typeface`,
 `overmap_typeface`); first entry is primary, the rest are glyph fallbacks.
@@ -85,6 +89,19 @@ order all survive round-trips; both are backed up to `config-backups/` before
 every write. Imported fonts are copied into the persistent user `font/` dir
 and referenced by bare filename — TLG searches the user font dir before the
 game's `data/font`, and the user dir survives updates.
+
+Colour schemes are the game's `data/raw/color_themes` presets (a `colordef` of
+sixteen RGB colours); applying one writes `config/base_colors.json`. Tilesets
+and soundpacks are enumerated from the bundle's `gfx/` and `data/sound` plus
+the user `gfx/`/`sound/` dirs, and selected via the `TILES` /
+`OVERMAP_TILES` / `DISTANT_TILES` / `SOUNDPACKS` options — isometric tilesets
+(detected from `tile_config.json`'s `tile_info`) are excluded from the overmap
+list, matching the game. Pack folders install into the persistent user dirs.
+
+The Fonts pane edits a draft (`FontsDraft`, held by `AppModel`) so switching
+panes never discards unsaved changes; dirty state shows in the sidebar and is
+confirmed only on quit. Colours/Tilesets apply explicitly; Sound writes
+straight through.
 
 ## Bundled guide
 
@@ -124,5 +141,5 @@ same generator as a CLI for scripted verification.
   staging/              transient install staging
   downloads/            transient DMGs
   backups/<stamp>/      metadata.json + UserData/ (full copy)
-  config-backups/       fonts.json/options.json pre-write copies
+  config-backups/       pre-write copies of edited game config files
 ```
