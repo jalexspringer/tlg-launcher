@@ -19,11 +19,17 @@ fi
 echo "Building release binary..."
 swift build --package-path "$REPO_ROOT" -c release --product TLGLauncher
 
-BIN="$(swift build --package-path "$REPO_ROOT" -c release --show-bin-path)/TLGLauncher"
+BIN_DIR="$(swift build --package-path "$REPO_ROOT" -c release --show-bin-path)"
+BIN="$BIN_DIR/TLGLauncher"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/TLG Launcher"
+
+# SwiftPM target resources (Bundle.module) — the artwork on the Play pane.
+# Bundle.module traps at launch if this bundle is missing from Resources.
+ditto "$BIN_DIR/TLGLauncher_TLGLauncher.bundle" \
+      "$APP/Contents/Resources/TLGLauncher_TLGLauncher.bundle"
 
 if [[ -f "$REPO_ROOT/GuideDist/index.html" ]]; then
     ditto "$REPO_ROOT/GuideDist" "$APP/Contents/Resources/GuideDist"

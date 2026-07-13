@@ -4,6 +4,13 @@ import TLGLauncherCore
 struct HomeView: View {
     @Environment(AppModel.self) private var model
 
+    @State private var interfaceFontLabel = "—"
+    @State private var colorSchemeLabel = "—"
+
+    private static let artwork: NSImage? = Bundle.module
+        .url(forResource: "tlg-artwork", withExtension: "png")
+        .flatMap { NSImage(contentsOf: $0) }
+
     private var currentLabel: String {
         model.launcherState.activeTag?.replacingOccurrences(of: "cataclysm-tlg-", with: "")
             ?? "None installed"
@@ -14,6 +21,25 @@ struct HomeView: View {
     }
 
     var body: some View {
+        HStack(alignment: .top, spacing: 28) {
+            mainColumn
+            artworkColumn
+                .frame(width: 260)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear { refreshSettingsSummary() }
+        .confirmationDialog(
+            "Roll back the application to the previous version?",
+            isPresented: $rollbackRequested
+        ) {
+            Button("Roll Back", role: .destructive) { model.rollback() }
+        } message: {
+            Text("Only the game application changes — your user data stays as it is. Saves opened by a newer game version may not load with an older one; restore a matching backup from the Backups tab if needed.")
+        }
+    }
+
+    private var mainColumn: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Cataclysm: The Last Generation")
@@ -38,6 +64,14 @@ struct HomeView: View {
                                     .background(.blue.opacity(0.15), in: Capsule())
                             }
                         }
+                    }
+                    GridRow {
+                        Text("Interface font").foregroundStyle(.secondary)
+                        Text(interfaceFontLabel)
+                    }
+                    GridRow {
+                        Text("Colour scheme").foregroundStyle(.secondary)
+                        Text(colorSchemeLabel)
                     }
                     if let checked = model.lastChecked {
                         GridRow {
@@ -118,15 +152,52 @@ struct HomeView: View {
 
             Spacer()
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .confirmationDialog(
-            "Roll back the application to the previous version?",
-            isPresented: $rollbackRequested
-        ) {
-            Button("Roll Back", role: .destructive) { model.rollback() }
-        } message: {
-            Text("Only the game application changes — your user data stays as it is. Saves opened by a newer game version may not load with an older one; restore a matching backup from the Backups tab if needed.")
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var artworkColumn: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let artwork = Self.artwork {
+                Image(nsImage: artwork)
+                    .resizable()
+                    .scaledToFit()
+                    .accessibilityLabel("Cataclysm: The Last Generation artwork")
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Link("cataclysmtlg.com",
+                     destination: URL(string: "https://cataclysmtlg.com/")!)
+                Link("Cataclysm-TLG on GitHub",
+                     destination: URL(string: "https://github.com/Cataclysm-TLG/Cataclysm-TLG")!)
+                HStack(spacing: 4) {
+                    Text("Created by").foregroundStyle(.secondary)
+                    Link("worm girl",
+                         destination: URL(string: "https://www.youtube.com/@worm-girl")!)
+                    Text("and contributors").foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout)
+        }
+    }
+
+    /// Reads the font and colour choices the other panes manage, so the Play
+    /// pane reflects what the game will actually start with.
+    private func refreshSettingsSummary() {
+        let fonts = (try? model.fontStore.loadFonts()) ?? .tlgDefault
+        let size = (try? model.fontStore.optionValue(.fontSize)) ?? FontOption.fontSize.tlgDefault
+        let primary = fonts.typeface.first.map {
+            (($0 as NSString).lastPathComponent as NSString).deletingPathExtension
+        } ?? "Default"
+        interfaceFontLabel = "\(primary), \(size) pt"
+
+        let current = (try? model.colorStore.currentColors()) ?? ColorTheme.tlgDefault.colors
+        if current == ColorTheme.tlgDefault.colors {
+            colorSchemeLabel = ColorTheme.tlgDefault.name
+        } else if let bundle = model.store.activeAppBundle(),
+                  let match = ColorThemeCatalog.bundledThemes(appBundle: bundle)
+                      .first(where: { $0.colors == current }) {
+            colorSchemeLabel = match.name
+        } else {
+            colorSchemeLabel = "Custom"
         }
     }
 

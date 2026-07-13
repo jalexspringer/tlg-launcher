@@ -8,7 +8,8 @@ let package = Package(
         .target(name: "TLGLauncherCore"),
         .executableTarget(
             name: "TLGLauncher",
-            dependencies: ["TLGLauncherCore"]
+            dependencies: ["TLGLauncherCore"],
+            resources: [.copy("Resources/tlg-artwork.png")]
         ),
         // Test-library-free check runner: the machine builds with Command Line
         // Tools only, which ship neither XCTest nor Swift Testing. `swift run
