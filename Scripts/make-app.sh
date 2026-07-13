@@ -1,0 +1,66 @@
+#!/bin/bash
+# Assembles "TLG Launcher.app" from the SwiftPM build products.
+#
+# This machine builds with Command Line Tools only (no Xcode), so the bundle
+# is put together by hand: release binary + Info.plist + staged guide dist,
+# then ad-hoc signed.
+#
+# Usage: Scripts/make-app.sh [--skip-guide]
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP="$REPO_ROOT/dist/TLG Launcher.app"
+SKIP_GUIDE="${1:-}"
+
+if [[ "$SKIP_GUIDE" != "--skip-guide" && ! -f "$REPO_ROOT/GuideDist/index.html" ]]; then
+    "$REPO_ROOT/Scripts/build-guide.sh"
+fi
+
+echo "Building release binary..."
+swift build --package-path "$REPO_ROOT" -c release --product TLGLauncher
+
+BIN="$(swift build --package-path "$REPO_ROOT" -c release --show-bin-path)/TLGLauncher"
+
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp "$BIN" "$APP/Contents/MacOS/TLG Launcher"
+
+if [[ -f "$REPO_ROOT/GuideDist/index.html" ]]; then
+    ditto "$REPO_ROOT/GuideDist" "$APP/Contents/Resources/GuideDist"
+else
+    echo "warning: GuideDist missing — the Guide tab will be empty" >&2
+fi
+
+cat > "$APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>TLG Launcher</string>
+	<key>CFBundleIdentifier</key>
+	<string>me.alexspringer.tlg-launcher</string>
+	<key>CFBundleName</key>
+	<string>TLG Launcher</string>
+	<key>CFBundleDisplayName</key>
+	<string>TLG Launcher</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>
+PLIST
+
+codesign --force --deep --sign - "$APP"
+echo "Built: $APP"

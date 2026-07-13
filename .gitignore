@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+dist/
+GuideDist/
+*.app/
+.DS_Store
