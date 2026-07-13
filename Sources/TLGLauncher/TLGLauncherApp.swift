@@ -28,7 +28,7 @@ struct TLGLauncherApp: App {
         WindowGroup("TLG Launcher") {
             ContentView()
                 .environment(model)
-                .frame(minWidth: 860, minHeight: 560)
+                .frame(minWidth: 1000, minHeight: 620)
                 .onAppear {
                     let model = self.model
                     quitGuard.hasUnsavedChanges = { model.fontsDraft?.dirty == true }
@@ -54,6 +54,9 @@ struct TLGLauncherApp: App {
                 }
         }
         .windowResizability(.contentMinSize)
+        // Without this the window opens at its minimum, which is tight
+        // enough to truncate the Play-row buttons.
+        .defaultSize(width: 1220, height: 780)
     }
 }
 

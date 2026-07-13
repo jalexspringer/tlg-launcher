@@ -23,10 +23,10 @@ struct HomeView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 28) {
+        HStack(alignment: .top, spacing: 24) {
             mainColumn
             artworkColumn
-                .frame(width: 260)
+                .frame(width: 240)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -178,12 +178,9 @@ struct HomeView: View {
                      destination: URL(string: "https://cataclysmtlg.com/")!)
                 Link("Cataclysm-TLG on GitHub",
                      destination: URL(string: "https://github.com/Cataclysm-TLG/Cataclysm-TLG")!)
-                HStack(spacing: 4) {
-                    Text("Created by").foregroundStyle(.secondary)
-                    Link("worm girl",
-                         destination: URL(string: "https://www.youtube.com/@worm-girl")!)
-                    Text("and contributors").foregroundStyle(.secondary)
-                }
+                // A single Text so the credit wraps as prose when space is tight.
+                Text(.init("Created by [worm girl](https://www.youtube.com/@worm-girl) and contributors"))
+                    .foregroundStyle(.secondary)
             }
             .font(.callout)
         }
