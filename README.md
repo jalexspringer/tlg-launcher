@@ -11,6 +11,10 @@ A native macOS launcher and update manager for
   import into the persistent user font directory and live preview.
 - Colour scheme picker for the preset palettes the game ships in
   data/raw/color_themes, with a live preview of each.
+- Tileset picker for map, overmap and distant zoom, with sprite-sheet
+  previews and folder install into the persistent user gfx directory.
+- Sound pane: soundpack picker, volume sliders, and soundpack install into
+  the persistent user sound directory.
 - Bundles the TLG Hitchhiker's Guide, served to a WKWebView from a
   loopback-only HTTP server.
 - Generates the guide's game data locally from the installed build (same

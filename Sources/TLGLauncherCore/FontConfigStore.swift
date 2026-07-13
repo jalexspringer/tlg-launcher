@@ -1,19 +1,5 @@
 import Foundation
 
-public enum FontConfigError: Error, CustomStringConvertible {
-    case gameRunning
-    case malformedFile(String)
-
-    public var description: String {
-        switch self {
-        case .gameRunning:
-            return "Cataclysm: TLG is running. Close the game before changing font settings."
-        case .malformedFile(let name):
-            return "\(name) could not be parsed. Fix or remove it, then try again."
-        }
-    }
-}
-
 /// The three typeface stacks TLG reads from config/fonts.json. Each is an
 /// ordered list; later entries are fallbacks for missing glyphs.
 public struct FontsConfig: Sendable, Equatable {
@@ -62,15 +48,16 @@ public enum FontOption: String, CaseIterable, Sendable {
     }
 }
 
-/// Reads and writes TLG's fonts.json and options.json.
+/// Reads and writes TLG's fonts.json, plus the font entries of options.json
+/// via GameOptionsStore.
 ///
-/// Both files are edited through JSONSerialization dictionaries/arrays so
-/// every field the launcher does not understand survives a round trip
-/// untouched, and both are backed up before every write. Writes are refused
-/// while the game is running.
+/// fonts.json is edited through JSONSerialization dictionaries so every field
+/// the launcher does not understand survives a round trip untouched, and is
+/// backed up before every write. Writes are refused while the game is running.
 public struct FontConfigStore: Sendable {
     public let paths: LauncherPaths
     private let detector: GameProcessDetecting
+    private let options: GameOptionsStore
     private let now: @Sendable () -> Date
 
     public init(
@@ -80,6 +67,7 @@ public struct FontConfigStore: Sendable {
     ) {
         self.paths = paths
         self.detector = detector
+        self.options = GameOptionsStore(paths: paths, detector: detector, now: now)
         self.now = now
     }
 
@@ -91,7 +79,7 @@ public struct FontConfigStore: Sendable {
         }
         let data = try Data(contentsOf: paths.fontsJSON)
         guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw FontConfigError.malformedFile("fonts.json")
+            throw GameConfigError.malformedFile("fonts.json")
         }
         return FontsConfig(
             typeface: Self.typefaceList(dict["typeface"]) ?? FontsConfig.tlgDefault.typeface,
@@ -108,15 +96,15 @@ public struct FontConfigStore: Sendable {
     }
 
     public func saveFonts(_ config: FontsConfig) throws {
-        try guardWritable()
+        guard !detector.isGameRunning() else { throw GameConfigError.gameRunning }
         var dict: [String: Any] = [:]
         if FileManager.default.fileExists(atPath: paths.fontsJSON.path) {
             let data = try Data(contentsOf: paths.fontsJSON)
             guard let existing = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw FontConfigError.malformedFile("fonts.json")
+                throw GameConfigError.malformedFile("fonts.json")
             }
             dict = existing
-            try backUp(paths.fontsJSON)
+            try ConfigFileBackup.backUp(paths.fontsJSON, paths: paths, at: now())
         }
         dict["typeface"] = config.typeface
         dict["map_typeface"] = config.mapTypeface
@@ -127,67 +115,21 @@ public struct FontConfigStore: Sendable {
         try data.atomicWrite(to: paths.fontsJSON)
     }
 
-    // MARK: options.json
+    // MARK: options.json (delegated)
 
-    /// Current value of one option, or nil when the file/entry is absent.
     public func optionValue(_ option: FontOption) throws -> String? {
-        guard let entries = try loadOptionEntries() else { return nil }
-        for case let entry as [String: Any] in entries where entry["name"] as? String == option.rawValue {
-            return entry["value"] as? String
-        }
-        return nil
+        try options.value(option.rawValue)
     }
 
-    /// Rewrites options.json with the given font option values, preserving
-    /// every other entry, unknown fields and entry order. Missing entries are
-    /// appended (the game fills in its own metadata on next save).
     public func setOptions(_ values: [FontOption: String]) throws {
-        try guardWritable()
-        guard var entries = try loadOptionEntries() else {
-            throw FontConfigError.malformedFile("options.json (missing — run the game once first)")
-        }
-        try backUp(paths.optionsJSON)
-        var remaining = values
-        for (index, item) in entries.enumerated() {
-            guard var entry = item as? [String: Any],
-                  let name = entry["name"] as? String,
-                  let option = FontOption(rawValue: name),
-                  let newValue = remaining.removeValue(forKey: option)
-            else { continue }
-            entry["value"] = newValue
-            entries[index] = entry
-        }
-        for (option, value) in remaining.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            entries.append(["name": option.rawValue, "value": value] as [String: Any])
-        }
-        let data = try JSONSerialization.data(
-            withJSONObject: entries, options: [.prettyPrinted, .sortedKeys]
-        )
-        try data.atomicWrite(to: paths.optionsJSON)
-    }
-
-    private func loadOptionEntries() throws -> [Any]? {
-        guard FileManager.default.fileExists(atPath: paths.optionsJSON.path) else { return nil }
-        let data = try Data(contentsOf: paths.optionsJSON)
-        guard let entries = try JSONSerialization.jsonObject(with: data) as? [Any] else {
-            throw FontConfigError.malformedFile("options.json")
-        }
-        return entries
-    }
-
-    // MARK: shared
-
-    private func guardWritable() throws {
-        guard !detector.isGameRunning() else { throw FontConfigError.gameRunning }
-    }
-
-    private func backUp(_ file: URL) throws {
-        try ConfigFileBackup.backUp(file, paths: paths, at: now())
+        try options.setValues(Dictionary(
+            uniqueKeysWithValues: values.map { ($0.key.rawValue, $0.value) }
+        ))
     }
 }
 
 /// Copies a config file into a timestamped folder under config-backups before
-/// it is overwritten. Shared by the font and colour stores.
+/// it is overwritten. Shared by the font, colour and options stores.
 enum ConfigFileBackup {
     static func backUp(_ file: URL, paths: LauncherPaths, at date: Date) throws {
         let formatter = DateFormatter()

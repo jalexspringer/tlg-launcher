@@ -6,6 +6,8 @@ struct HomeView: View {
 
     @State private var interfaceFontLabel = "—"
     @State private var colorSchemeLabel = "—"
+    @State private var tilesetLabel = "—"
+    @State private var soundpackLabel = "—"
 
     private static let artwork: NSImage? = Bundle.module
         .url(forResource: "tlg-artwork", withExtension: "png")
@@ -72,6 +74,14 @@ struct HomeView: View {
                     GridRow {
                         Text("Colour scheme").foregroundStyle(.secondary)
                         Text(colorSchemeLabel)
+                    }
+                    GridRow {
+                        Text("Tileset").foregroundStyle(.secondary)
+                        Text(tilesetLabel)
+                    }
+                    GridRow {
+                        Text("Soundpack").foregroundStyle(.secondary)
+                        Text(soundpackLabel)
                     }
                     if let checked = model.lastChecked {
                         GridRow {
@@ -198,6 +208,26 @@ struct HomeView: View {
             colorSchemeLabel = match.name
         } else {
             colorSchemeLabel = "Custom"
+        }
+
+        let option = { (name: String) in ((try? model.optionsStore.value(name)) ?? nil) }
+        if option("USE_TILES") == "false" {
+            tilesetLabel = "Off (ASCII)"
+        } else {
+            let tilesets = TilesetCatalog.tilesets(
+                appBundle: model.store.activeAppBundle(), paths: model.paths
+            )
+            let name = option("TILES")
+            tilesetLabel = tilesets.first { $0.name == name }?.viewName ?? name ?? "Default"
+        }
+        if option("SOUND_ENABLED") == "false" {
+            soundpackLabel = "Sound off"
+        } else {
+            let packs = SoundpackCatalog.soundpacks(
+                appBundle: model.store.activeAppBundle(), paths: model.paths
+            )
+            let name = option("SOUNDPACKS")
+            soundpackLabel = packs.first { $0.name == name }?.viewName ?? name ?? "Default"
         }
     }
 

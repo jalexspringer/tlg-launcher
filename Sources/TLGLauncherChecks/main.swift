@@ -395,8 +395,8 @@ let checks: [Check] = [
         defer { cleanup() }
         try write(optionsFixture, to: paths.optionsJSON)
         let store = FontConfigStore(paths: paths, detector: FakeDetector(running: true))
-        try expectThrows({ try store.setOptions([.fontWidth: "12"]) }, FontConfigError.self)
-        try expectThrows({ try store.saveFonts(.tlgDefault) }, FontConfigError.self)
+        try expectThrows({ try store.setOptions([.fontWidth: "12"]) }, GameConfigError.self)
+        try expectThrows({ try store.saveFonts(.tlgDefault) }, GameConfigError.self)
     },
 
     Check("font import: deduplicates identical files, suffixes name collisions, rejects odd types") {
@@ -435,10 +435,10 @@ let checks: [Check] = [
         try expectEqual(colors[.white], RGB(255, 255, 255))
         try expectEqual(colors.count, GameColor.allCases.count)
         try expectThrows({ _ = try ColorThemeCatalog.parseColordef(Data("[]".utf8)) },
-                         ColorThemeError.self)
+                         GameConfigError.self)
         try expectThrows({ _ = try ColorThemeCatalog.parseColordef(Data("""
         [{"type": "colordef", "RED": [1, 2]}]
-        """.utf8)) }, ColorThemeError.self)
+        """.utf8)) }, GameConfigError.self)
     },
 
     Check("colour themes: display names derive from mixed-separator filenames") {
@@ -483,7 +483,80 @@ let checks: [Check] = [
         try expectEqual(backups.count, 1)
 
         let busy = ColorThemeStore(paths: paths, detector: FakeDetector(running: true))
-        try expectThrows({ try busy.apply(.tlgDefault) }, ColorThemeError.self)
+        try expectThrows({ try busy.apply(.tlgDefault) }, GameConfigError.self)
+    },
+
+    // Tilesets and soundpacks -------------------------------------------------
+
+    Check("options store: generic values update in place, append when missing, refuse while running") {
+        let (paths, cleanup) = try temporaryPaths()
+        defer { cleanup() }
+        try write(optionsFixture, to: paths.optionsJSON)
+        let store = GameOptionsStore(paths: paths, detector: FakeDetector(running: false))
+        try store.setValues(["TILES": "neodays", "AUTO_PICKUP": "false"])
+        try expectEqual(try store.value("AUTO_PICKUP"), "false")
+        try expectEqual(try store.value("TILES"), "neodays")
+        try expectEqual(try store.value("DEF_CHAR_NAME"), "Maude")
+        let entries = try JSONSerialization.jsonObject(with: Data(contentsOf: paths.optionsJSON)) as! [[String: Any]]
+        try expectEqual(entries.map { $0["name"] as! String },
+                        ["DEF_CHAR_NAME", "FONT_WIDTH", "AUTO_PICKUP", "FONT_HEIGHT", "TILES"])
+        let busy = GameOptionsStore(paths: paths, detector: FakeDetector(running: true))
+        try expectThrows({ try busy.setValues(["TILES": "x"]) }, GameConfigError.self)
+    },
+
+    Check("tilesets: tileset.txt parses, iso detected from tile_config, user pack shadows bundled") {
+        let (paths, cleanup) = try temporaryPaths()
+        defer { cleanup() }
+        let bundle = paths.launcherSupport.appendingPathComponent("Cataclysm.app")
+        let gfx = TilesetCatalog.bundledGfxDirectory(appBundle: bundle)
+
+        func makeTileset(at dir: URL, name: String, view: String, iso: Bool) throws {
+            try write("""
+            #A comment: ignored
+            NAME: \(name)
+            VIEW: \(view)
+            JSON: tile_config.json
+            TILESET: tiles.png
+            Original Author: prose, not metadata
+            """, to: dir.appendingPathComponent("tileset.txt"))
+            try write(#"{"tile_info": [{"width": 16, "iso": \#(iso)}], "tiles-new": []}"#,
+                      to: dir.appendingPathComponent("tile_config.json"))
+            try write("png", to: dir.appendingPathComponent("tiles.png"))
+        }
+        try makeTileset(at: gfx.appendingPathComponent("NeoDaysTileset"), name: "neodays", view: "NeoDays", iso: false)
+        try makeTileset(at: gfx.appendingPathComponent("Iso"), name: "smash_iso", view: "Smash iso", iso: true)
+        try write("not a tileset", to: gfx.appendingPathComponent("Broken/readme.txt"))
+        // A user tileset with the same NAME shadows the bundled one.
+        try makeTileset(at: paths.userGfxDir.appendingPathComponent("NeoDaysHD"), name: "neodays", view: "NeoDays HD", iso: false)
+
+        let tilesets = TilesetCatalog.tilesets(appBundle: bundle, paths: paths)
+        try expectEqual(tilesets.map(\.viewName), ["NeoDays HD", "Smash iso"])
+        try expectEqual(tilesets.map(\.isIsometric), [false, true])
+        try expect(tilesets[0].directory.path.contains("NeoDaysHD"), "user pack should shadow bundled")
+        try expect(tilesets[0].imageURL != nil, "sprite sheet should resolve")
+    },
+
+    Check("soundpacks: soundpack.txt parses; install validates and copies into the user folder") {
+        let (paths, cleanup) = try temporaryPaths()
+        defer { cleanup() }
+        let bundle = paths.launcherSupport.appendingPathComponent("Cataclysm.app")
+        let sound = SoundpackCatalog.bundledSoundDirectory(appBundle: bundle)
+        try write("#Basic pack\nNAME: basic\nVIEW: Basic", to: sound.appendingPathComponent("Basic/soundpack.txt"))
+
+        let external = paths.launcherSupport.appendingPathComponent("Downloads/CC-Sounds")
+        try write("NAME: CC-Sounds\nVIEW: CC-Sounds", to: external.appendingPathComponent("soundpack.txt"))
+        try write("wav", to: external.appendingPathComponent("clang.wav"))
+        try SoundpackCatalog.install(from: external, paths: paths)
+
+        let packs = SoundpackCatalog.soundpacks(appBundle: bundle, paths: paths)
+        try expectEqual(packs.map(\.viewName), ["Basic", "CC-Sounds"])
+        try expect(packs[1].directory.resolvingSymlinksInPath().path
+                       .hasPrefix(paths.userSoundDir.resolvingSymlinksInPath().path),
+                   "installed pack should live in user sound dir")
+
+        let junk = paths.launcherSupport.appendingPathComponent("Downloads/NotAPack")
+        try write("hello", to: junk.appendingPathComponent("readme.txt"))
+        try expectThrows({ try SoundpackCatalog.install(from: junk, paths: paths) }, GameConfigError.self)
     },
 
     // Game launch plan --------------------------------------------------------

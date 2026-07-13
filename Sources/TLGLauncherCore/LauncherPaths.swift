@@ -39,6 +39,8 @@ public struct LauncherPaths: Sendable {
     public var savesDir: URL { gameUserData.appendingPathComponent("save", isDirectory: true) }
     public var configDir: URL { gameUserData.appendingPathComponent("config", isDirectory: true) }
     public var userFontDir: URL { gameUserData.appendingPathComponent("font", isDirectory: true) }
+    public var userGfxDir: URL { gameUserData.appendingPathComponent("gfx", isDirectory: true) }
+    public var userSoundDir: URL { gameUserData.appendingPathComponent("sound", isDirectory: true) }
     public var fontsJSON: URL { configDir.appendingPathComponent("fonts.json") }
     public var optionsJSON: URL { configDir.appendingPathComponent("options.json") }
     public var baseColorsJSON: URL { configDir.appendingPathComponent("base_colors.json") }

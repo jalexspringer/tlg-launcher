@@ -10,6 +10,7 @@ final class AppModel {
     let backups: BackupManager
     let fontStore: FontConfigStore
     let colorStore: ColorThemeStore
+    let optionsStore: GameOptionsStore
     private let detector = GameProcessDetector()
     private let client = GitHubReleaseClient()
     private var guideServer: GuideServer?
@@ -36,6 +37,7 @@ final class AppModel {
     // destroyed on every selection change).
     var fontsDraft: FontsDraft?
     var colorSelection: ColorTheme.ID?
+    var tilesetSelection: [TilesetTarget: String] = [:]
 
     // Settings
     var retainedVersions: Int {
@@ -56,6 +58,7 @@ final class AppModel {
         self.backups = BackupManager(paths: paths, detector: detector)
         self.fontStore = FontConfigStore(paths: paths, detector: detector)
         self.colorStore = ColorThemeStore(paths: paths, detector: detector)
+        self.optionsStore = GameOptionsStore(paths: paths, detector: detector)
         self.launcherState = store.loadState()
         try? paths.ensureLauncherDirectories()
         reloadLocalState()

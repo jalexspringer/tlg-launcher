@@ -1,19 +1,5 @@
 import Foundation
 
-public enum ColorThemeError: Error, CustomStringConvertible {
-    case gameRunning
-    case malformedFile(String)
-
-    public var description: String {
-        switch self {
-        case .gameRunning:
-            return "Cataclysm: TLG is running. Close the game before changing the colour scheme."
-        case .malformedFile(let name):
-            return "\(name) could not be parsed. Fix or remove it, then try again."
-        }
-    }
-}
-
 /// The sixteen terminal colours a TLG colordef assigns, in the game's
 /// canonical order (normal eight, then their bright variants).
 public enum GameColor: String, CaseIterable, Sendable {
@@ -150,7 +136,7 @@ public enum ColorThemeCatalog {
     /// theme still yields a complete palette.
     public static func parseColordef(_ data: Data) throws -> [GameColor: RGB] {
         guard let array = try JSONSerialization.jsonObject(with: data) as? [Any] else {
-            throw ColorThemeError.malformedFile("colordef")
+            throw GameConfigError.malformedFile("colordef")
         }
         for case let object as [String: Any] in array {
             guard object["type"] as? String == "colordef" else { continue }
@@ -159,13 +145,13 @@ public enum ColorThemeCatalog {
                 guard let triple = object[color.rawValue] as? [Any] else { continue }
                 let channels = triple.compactMap { ($0 as? NSNumber)?.intValue }
                 guard channels.count == 3 else {
-                    throw ColorThemeError.malformedFile("colordef")
+                    throw GameConfigError.malformedFile("colordef")
                 }
                 colors[color] = RGB(channels[0], channels[1], channels[2])
             }
             return colors
         }
-        throw ColorThemeError.malformedFile("colordef")
+        throw GameConfigError.malformedFile("colordef")
     }
 }
 
@@ -197,14 +183,14 @@ public struct ColorThemeStore: Sendable {
         do {
             return try ColorThemeCatalog.parseColordef(data)
         } catch {
-            throw ColorThemeError.malformedFile("base_colors.json")
+            throw GameConfigError.malformedFile("base_colors.json")
         }
     }
 
     /// Writes the theme to config/base_colors.json in the game's own shape,
     /// backing up the previous file first.
     public func apply(_ theme: ColorTheme) throws {
-        guard !detector.isGameRunning() else { throw ColorThemeError.gameRunning }
+        guard !detector.isGameRunning() else { throw GameConfigError.gameRunning }
         if FileManager.default.fileExists(atPath: paths.baseColorsJSON.path) {
             try ConfigFileBackup.backUp(paths.baseColorsJSON, paths: paths, at: now())
         }

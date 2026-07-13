@@ -7,6 +7,8 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case backups = "Backups"
     case fonts = "Fonts"
     case colors = "Colours"
+    case tilesets = "Tilesets"
+    case sound = "Sound"
     case guide = "Guide"
     case settings = "Settings"
 
@@ -19,6 +21,8 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .backups: return "externaldrive.badge.timemachine"
         case .fonts: return "textformat"
         case .colors: return "paintpalette"
+        case .tilesets: return "square.grid.3x3.square"
+        case .sound: return "speaker.wave.2"
         case .guide: return "book"
         case .settings: return "gearshape"
         }
@@ -53,6 +57,8 @@ struct ContentView: View {
             case .backups: BackupsView()
             case .fonts: FontsView()
             case .colors: ColorsView()
+            case .tilesets: TilesetsView()
+            case .sound: SoundView()
             case .guide: GuideView()
             case .settings: SettingsView()
             }
