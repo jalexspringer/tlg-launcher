@@ -182,10 +182,18 @@ public struct FontConfigStore: Sendable {
     }
 
     private func backUp(_ file: URL) throws {
+        try ConfigFileBackup.backUp(file, paths: paths, at: now())
+    }
+}
+
+/// Copies a config file into a timestamped folder under config-backups before
+/// it is overwritten. Shared by the font and colour stores.
+enum ConfigFileBackup {
+    static func backUp(_ file: URL, paths: LauncherPaths, at date: Date) throws {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
         formatter.timeZone = TimeZone(identifier: "UTC")
-        let stamp = formatter.string(from: now())
+        let stamp = formatter.string(from: date)
         let dir = paths.configBackupsDir.appendingPathComponent(stamp, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let destination = dir.appendingPathComponent(file.lastPathComponent)

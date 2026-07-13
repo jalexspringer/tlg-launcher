@@ -9,11 +9,17 @@ A native macOS launcher and update manager for
   backup of it before each one.
 - First-class font picker for interface, map and overmap typefaces, with
   import into the persistent user font directory and live preview.
+- Colour scheme picker for the preset palettes the game ships in
+  data/raw/color_themes, with a live preview of each.
 - Bundles the TLG Hitchhiker's Guide, served to a WKWebView from a
   loopback-only HTTP server.
+- Generates the guide's game data locally from the installed build (same
+  format as RenechCDDA/tlg-data, verified equivalent), so the guide matches
+  the version you play and works offline; falls back to the remote data
+  otherwise.
 - Backups and restore, with safety copies before every restore.
 
-See `Docs/ARCHITECTURE.md` for design. British English throughout.
+See `Docs/ARCHITECTURE.md` for design.
 
 ## Building
 

@@ -37,9 +37,34 @@ struct GuideView: View {
 
                 Spacer()
 
-                Text("Game data is fetched live from RenechCDDA/tlg-data")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if controller.dataBase != nil {
+                    Text("Offline game data (matches installed version)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Game data fetched live from RenechCDDA/tlg-data")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if model.launcherState.activeTag != nil {
+                        if model.isGeneratingGuideData {
+                            ProgressView().controlSize(.small)
+                            Text("Generating offline data…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("Generate Offline Data") {
+                                Task {
+                                    await model.regenerateGuideData()
+                                    controller.configure(
+                                        homeURL: model.guideBaseURL(),
+                                        dataBase: model.guideDataBaseURL()
+                                    )
+                                }
+                            }
+                            .help("Builds the guide's game data from the installed version, so the guide matches what you play and works offline.")
+                        }
+                    }
+                }
 
                 Button {
                     if let url = controller.webView.url {
@@ -67,7 +92,13 @@ struct GuideView: View {
         }
         .onAppear {
             if controller.homeURL == nil {
-                controller.configure(homeURL: model.guideBaseURL())
+                let home = model.guideBaseURL()
+                // Scripted testing: open ... --args -guidePath /monster/mon_zombie
+                var initial: URL?
+                if let path = UserDefaults.standard.string(forKey: "guidePath"), let home {
+                    initial = URL(string: path.trimmingCharacters(in: ["/"]), relativeTo: home)
+                }
+                controller.configure(homeURL: home, dataBase: model.guideDataBaseURL(), initialURL: initial)
             }
         }
     }
@@ -79,6 +110,7 @@ struct GuideView: View {
 final class GuideWebController: NSObject, WKNavigationDelegate {
     let webView: WKWebView
     private(set) var homeURL: URL?
+    private(set) var dataBase: URL?
     var canGoBack = false
     var canGoForward = false
     var isLoading = false
@@ -90,9 +122,28 @@ final class GuideWebController: NSObject, WKNavigationDelegate {
         webView.navigationDelegate = self
     }
 
-    func configure(homeURL: URL?) {
+    /// `dataBase` is where the guide fetches game data. When set, it is
+    /// injected as `window.__HHG_DATA_BASE__` before every page load (the
+    /// guide fork consults it and otherwise uses its remote default), so it
+    /// survives reloads and in-app navigation alike.
+    func configure(homeURL: URL?, dataBase: URL?, initialURL: URL? = nil) {
         self.homeURL = homeURL
-        goHome()
+        self.dataBase = dataBase
+        let controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        if let dataBase {
+            let script = WKUserScript(
+                source: "window.__HHG_DATA_BASE__ = \"\(dataBase.absoluteString)\";",
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+            controller.addUserScript(script)
+        }
+        if let initialURL {
+            webView.load(URLRequest(url: initialURL))
+        } else {
+            goHome()
+        }
     }
 
     func goHome() {
@@ -125,9 +176,9 @@ final class GuideWebController: NSObject, WKNavigationDelegate {
         decidePolicyFor navigationAction: WKNavigationAction,
         decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
     ) {
-        let url = navigationAction.request.url
-        Task { @MainActor in
-            guard let url, let home = self.homeURL else {
+        // WKNavigationDelegate calls back on the main thread.
+        MainActor.assumeIsolated {
+            guard let url = navigationAction.request.url, let home = self.homeURL else {
                 decisionHandler(.allow)
                 return
             }

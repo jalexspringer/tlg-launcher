@@ -41,6 +41,7 @@ public struct LauncherPaths: Sendable {
     public var userFontDir: URL { gameUserData.appendingPathComponent("font", isDirectory: true) }
     public var fontsJSON: URL { configDir.appendingPathComponent("fonts.json") }
     public var optionsJSON: URL { configDir.appendingPathComponent("options.json") }
+    public var baseColorsJSON: URL { configDir.appendingPathComponent("base_colors.json") }
 
     public func versionDir(forTag tag: String) -> URL {
         versionsDir.appendingPathComponent(tag, isDirectory: true)

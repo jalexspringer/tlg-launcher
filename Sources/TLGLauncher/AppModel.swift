@@ -9,6 +9,7 @@ final class AppModel {
     let store: VersionStore
     let backups: BackupManager
     let fontStore: FontConfigStore
+    let colorStore: ColorThemeStore
     private let detector = GameProcessDetector()
     private let client = GitHubReleaseClient()
     private var guideServer: GuideServer?
@@ -49,6 +50,7 @@ final class AppModel {
         self.store = VersionStore(paths: paths)
         self.backups = BackupManager(paths: paths, detector: detector)
         self.fontStore = FontConfigStore(paths: paths, detector: detector)
+        self.colorStore = ColorThemeStore(paths: paths, detector: detector)
         self.launcherState = store.loadState()
         try? paths.ensureLauncherDirectories()
         reloadLocalState()
@@ -121,6 +123,10 @@ final class AppModel {
             try await makeInstaller().install(release: release) { phase in
                 Task { @MainActor in self.phase = phase }
             }
+            reloadLocalState()
+            // Refresh the offline guide data in the background; the guide
+            // falls back to the remote source until it completes.
+            Task { await self.regenerateGuideData() }
         } catch {
             alertMessage = String(describing: error)
         }
@@ -166,7 +172,7 @@ final class AppModel {
         let backups = self.backups
         let tag = launcherState.activeTag
         do {
-            try await Task.detached {
+            _ = try await Task.detached {
                 try backups.createBackup(reason: "Manual backup", gameVersionTag: tag)
             }.value
         } catch {
@@ -222,7 +228,10 @@ final class AppModel {
             return base
         }
         guard let root = Self.guideRoot() else { return nil }
-        let server = GuideServer(root: root)
+        let server = GuideServer(
+            root: root,
+            mounts: ["local-data": guideDataGenerator.cacheRoot]
+        )
         do {
             try server.start()
             guideServer = server
@@ -232,6 +241,48 @@ final class AppModel {
             return nil
         }
     }
+
+    // MARK: Local guide data
+
+    var guideDataGenerator: GuideDataGenerator { GuideDataGenerator(paths: paths) }
+
+    /// Where the guide should fetch game data from: the locally generated set
+    /// when one exists for the active version, otherwise nil and the guide
+    /// falls back to its remote source (RenechCDDA/tlg-data).
+    func guideDataBaseURL() -> URL? {
+        guard guideDataGenerator.hasUsableIndex(), let base = guideServer?.baseURL else {
+            return nil
+        }
+        return base.appendingPathComponent("local-data")
+    }
+
+    /// Regenerates guide data for the active version plus the index.
+    /// Runs after installs and from the Guide tab; safe to re-run.
+    func regenerateGuideData() async {
+        guard !isGeneratingGuideData else { return }
+        guard let tag = launcherState.activeTag else { return }
+        let bundle = store.appBundle(forTag: tag)
+        guard FileManager.default.fileExists(atPath: bundle.path) else { return }
+        isGeneratingGuideData = true
+        defer { isGeneratingGuideData = false }
+
+        let generator = guideDataGenerator
+        let release = releases.first { $0.tagName == tag }
+        let versions = installedVersions
+        do {
+            try await Task.detached(priority: .utility) {
+                if !generator.hasData(forTag: tag) {
+                    try generator.generate(forTag: tag, appBundle: bundle, release: release)
+                }
+                // Drop cached data for versions that are gone, then reindex.
+                try generator.rebuildIndex(installedVersions: versions, activeTag: tag)
+            }.value
+        } catch {
+            alertMessage = "Local guide data generation failed: \(error)"
+        }
+    }
+
+    var isGeneratingGuideData = false
 
     func stopGuideServer() {
         guideServer?.stop()

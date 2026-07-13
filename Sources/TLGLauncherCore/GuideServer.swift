@@ -9,12 +9,17 @@ import Network
 /// back to index.html.
 public final class GuideServer: @unchecked Sendable {
     public let root: URL
+    /// Extra top-level prefixes served from other directories, e.g.
+    /// ["local-data": <guide-data cache>]. Mounts are exact-file only:
+    /// no SPA fallback, so a missing file is an honest 404.
+    public let mounts: [String: URL]
     private let queue = DispatchQueue(label: "tlg-launcher.guide-server")
     private var listener: NWListener?
     public private(set) var port: UInt16?
 
-    public init(root: URL) {
+    public init(root: URL, mounts: [String: URL] = [:]) {
         self.root = root.standardizedFileURL
+        self.mounts = mounts.mapValues { $0.standardizedFileURL }
     }
 
     deinit { stop() }
@@ -140,17 +145,27 @@ public final class GuideServer: @unchecked Sendable {
         guard let decoded = path.removingPercentEncoding, !decoded.contains("\0") else {
             return nil
         }
-        let components = decoded.split(separator: "/").map(String.init)
+        var components = decoded.split(separator: "/").map(String.init)
         guard !components.contains("..") else {
             return nil
         }
 
-        var candidate = root
+        // Mounted prefixes serve exact files from another root — no SPA
+        // fallback, so the guide sees honest 404s for absent data.
+        var base = root
+        var allowSPAFallback = true
+        if let first = components.first, let mountRoot = mounts[first] {
+            base = mountRoot
+            allowSPAFallback = false
+            components.removeFirst()
+        }
+
+        var candidate = base
         for component in components {
             candidate.appendPathComponent(component)
         }
         candidate = candidate.standardizedFileURL
-        guard candidate.path == root.path || candidate.path.hasPrefix(root.path + "/") else {
+        guard candidate.path == base.path || candidate.path.hasPrefix(base.path + "/") else {
             return nil
         }
 
@@ -159,10 +174,11 @@ public final class GuideServer: @unchecked Sendable {
         if fm.fileExists(atPath: candidate.path, isDirectory: &isDirectory) {
             if isDirectory.boolValue {
                 let index = candidate.appendingPathComponent("index.html")
-                return fm.fileExists(atPath: index.path) ? index : fallbackIndex()
+                return fm.fileExists(atPath: index.path) ? index : (allowSPAFallback ? fallbackIndex() : nil)
             }
             return candidate
         }
+        guard allowSPAFallback else { return nil }
         // SPA fallback: unknown extensionless routes get the app shell;
         // missing assets (anything with an extension) are honest 404s.
         return components.last?.contains(".") == true ? nil : fallbackIndex()

@@ -94,9 +94,26 @@ copies into the app's Resources. `GuideServer` serves it over
 `http://127.0.0.1:<ephemeral>` — GET/HEAD only, traversal rejected both by
 component check and root-prefix check after standardisation, extensionless
 routes fall back to `index.html` (Vite SPA), missing assets 404. The bundled
-part is the guide **UI**; game data is still fetched live from
-`RenechCDDA/tlg-data` (its GitHub Action aggregates each game release's JSON
-into one `all.json`), so guide content tracks TLG releases without rebuilding.
+part is the guide **UI**; game data comes from either of two sources:
+
+- **Remote (fallback)**: `RenechCDDA/tlg-data`, whose GitHub Action aggregates
+  each game release's JSON into one `all.json`.
+- **Local (preferred once a version is installed)**: `GuideDataGenerator`
+  replicates that pipeline from the installed build — the app bundle carries
+  the identical `data/json` and `data/mods` inputs. `JSONObjectScanner` is a
+  byte-level port of the Action's top-level-object splitter, so the
+  `__filename …#L<start>-L<end>` source links match exactly (verified
+  deep-equal against the remote output for a same-tag sample: 2,643 objects,
+  14 files, 0 diffs). Output mirrors the remote layout
+  (`guide-data/builds.json`, `data/<tag>/all.json`, `data/latest/…`) and is
+  served under the `/local-data/` mount (exact files, no SPA fallback).
+
+The guide fork reads `window.__HHG_DATA_BASE__` (injected by the launcher via
+`WKUserScript` before every page load) or a `?data=` query parameter, falling
+back to the remote URL — so the same bundled dist works in both modes, and the
+guide's version selector lists installed versions when local data is active.
+Generation runs automatically after each install; `GuideDataTool` exposes the
+same generator as a CLI for scripted verification.
 
 ## Layout on disk
 

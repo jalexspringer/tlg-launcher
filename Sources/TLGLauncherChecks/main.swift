@@ -423,6 +423,69 @@ let checks: [Check] = [
         try expectThrows({ try FontCatalog.importFont(from: bad, paths: paths) }, FontFileError.self)
     },
 
+    // Colour schemes ----------------------------------------------------------
+
+    Check("colour themes: colordef parses, unknown keys ignored, missing colours default") {
+        let colors = try ColorThemeCatalog.parseColordef(Data("""
+        [{"type": "colordef", "BLACK": [1, 2, 3], "RED": [200, 0, 0], "FUTURE_COLOR": [9, 9, 9]}]
+        """.utf8))
+        try expectEqual(colors[.black], RGB(1, 2, 3))
+        try expectEqual(colors[.red], RGB(200, 0, 0))
+        // Colours the file omits fall back to the TLG default palette.
+        try expectEqual(colors[.white], RGB(255, 255, 255))
+        try expectEqual(colors.count, GameColor.allCases.count)
+        try expectThrows({ _ = try ColorThemeCatalog.parseColordef(Data("[]".utf8)) },
+                         ColorThemeError.self)
+        try expectThrows({ _ = try ColorThemeCatalog.parseColordef(Data("""
+        [{"type": "colordef", "RED": [1, 2]}]
+        """.utf8)) }, ColorThemeError.self)
+    },
+
+    Check("colour themes: display names derive from mixed-separator filenames") {
+        try expectEqual(ColorThemeCatalog.displayName(forFile: "base_colors-blood_moon.json"), "Blood Moon")
+        try expectEqual(ColorThemeCatalog.displayName(forFile: "base_colors_gruvbox-light.json"), "Gruvbox Light")
+        try expectEqual(ColorThemeCatalog.displayName(forFile: "base_colors-12bit-rainbow.json"), "12bit Rainbow")
+    },
+
+    Check("colour themes: bundled catalogue lists parseable themes sorted, skips malformed") {
+        let (paths, cleanup) = try temporaryPaths()
+        defer { cleanup() }
+        let bundle = paths.launcherSupport.appendingPathComponent("Cataclysm.app")
+        let dir = ColorThemeCatalog.themesDirectory(appBundle: bundle)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try write(#"[{"type": "colordef", "BLACK": [5, 5, 5]}]"#,
+                  to: dir.appendingPathComponent("base_colors-vintage.json"))
+        try write(#"[{"type": "colordef", "BLACK": [9, 9, 9]}]"#,
+                  to: dir.appendingPathComponent("base_colors_amber.json"))
+        try write("not json", to: dir.appendingPathComponent("base_colors-broken.json"))
+        try write("readme", to: dir.appendingPathComponent("notes.txt"))
+
+        let themes = ColorThemeCatalog.bundledThemes(appBundle: bundle)
+        try expectEqual(themes.map(\.name), ["Amber", "Vintage"])
+        try expectEqual(themes[1].colors[.black], RGB(5, 5, 5))
+    },
+
+    Check("colour themes: apply writes base_colors.json, backs up, round-trips; refused while running") {
+        let (paths, cleanup) = try temporaryPaths()
+        defer { cleanup() }
+        let store = ColorThemeStore(paths: paths, detector: FakeDetector(running: false))
+        // Absent file reads as the TLG default palette.
+        try expectEqual(try store.currentColors(), ColorTheme.tlgDefault.colors)
+
+        var colors = ColorTheme.tlgDefault.colors
+        colors[.black] = RGB(56, 59, 65)
+        try store.apply(ColorTheme(name: "Dark", colors: colors))
+        try expectEqual(try store.currentColors(), colors)
+        // First write had nothing to back up; the second must.
+        try store.apply(.tlgDefault)
+        try expectEqual(try store.currentColors(), ColorTheme.tlgDefault.colors)
+        let backups = try FileManager.default.contentsOfDirectory(atPath: paths.configBackupsDir.path)
+        try expectEqual(backups.count, 1)
+
+        let busy = ColorThemeStore(paths: paths, detector: FakeDetector(running: true))
+        try expectThrows({ try busy.apply(.tlgDefault) }, ColorThemeError.self)
+    },
+
     // Game launch plan --------------------------------------------------------
 
     Check("launch plan: runs the tiles binary from Resources with --userdir and trailing slash") {
@@ -540,4 +603,4 @@ func snapshot(of dir: URL) throws -> [String: String] {
     return result
 }
 
-await runChecks(checks)
+await runChecks(checks + guideDataChecks)

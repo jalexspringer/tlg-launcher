@@ -17,5 +17,11 @@ let package = Package(
             name: "TLGLauncherChecks",
             dependencies: ["TLGLauncherCore"]
         ),
+        // CLI for generating the guide's game data from an installed build,
+        // used for scripted verification against the remote pipeline.
+        .executableTarget(
+            name: "GuideDataTool",
+            dependencies: ["TLGLauncherCore"]
+        ),
     ]
 )

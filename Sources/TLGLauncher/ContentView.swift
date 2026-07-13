@@ -6,6 +6,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case releases = "Releases"
     case backups = "Backups"
     case fonts = "Fonts"
+    case colors = "Colours"
     case guide = "Guide"
     case settings = "Settings"
 
@@ -17,6 +18,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .releases: return "clock.arrow.circlepath"
         case .backups: return "externaldrive.badge.timemachine"
         case .fonts: return "textformat"
+        case .colors: return "paintpalette"
         case .guide: return "book"
         case .settings: return "gearshape"
         }
@@ -25,7 +27,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
-    @State private var selection: SidebarItem = .play
+    // Overridable at launch for scripted testing: open ... --args -initialTab Fonts
+    @State private var selection: SidebarItem =
+        SidebarItem(rawValue: UserDefaults.standard.string(forKey: "initialTab") ?? "") ?? .play
 
     var body: some View {
         @Bindable var model = model
@@ -40,6 +44,7 @@ struct ContentView: View {
             case .releases: ReleasesView()
             case .backups: BackupsView()
             case .fonts: FontsView()
+            case .colors: ColorsView()
             case .guide: GuideView()
             case .settings: SettingsView()
             }

@@ -62,9 +62,13 @@ struct FontsView: View {
     }
 
     var body: some View {
-        HSplitView {
+        // HStack rather than HSplitView: HSplitView lays panes out at their
+        // ideal width, and the preview's ideal is the unwrapped sample text,
+        // which pushes the whole detail view wider than the window.
+        HStack(spacing: 0) {
             controls
                 .frame(minWidth: 380, idealWidth: 420, maxWidth: 480)
+            Divider()
             FontPreviewPane(
                 reference: stack.first,
                 pointSize: Double(optionValues[target.sizeOption] ?? "16") ?? 16,
@@ -72,7 +76,7 @@ struct FontsView: View {
                 paths: model.paths,
                 appBundle: model.store.activeAppBundle()
             )
-            .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 280, maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear { if !loaded { load() } }
     }

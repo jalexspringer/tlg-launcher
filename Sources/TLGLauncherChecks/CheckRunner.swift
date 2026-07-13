@@ -44,11 +44,11 @@ func expectThrows<E>(
     // Any other error propagates and fails the check with its own message.
 }
 
-struct Check {
+struct Check: Sendable {
     let name: String
-    let run: () async throws -> Void
+    let run: @Sendable () async throws -> Void
 
-    init(_ name: String, _ run: @escaping () async throws -> Void) {
+    init(_ name: String, _ run: @escaping @Sendable () async throws -> Void) {
         self.name = name
         self.run = run
     }
