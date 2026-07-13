@@ -30,6 +30,7 @@ swift build                      # compile
 swift run TLGLauncherChecks      # run the check suite
 Scripts/build-guide.sh           # build ../tlg-guide and stage its dist/
 Scripts/make-app.sh              # assemble dist/TLG Launcher.app (ad-hoc signed)
+Scripts/make-dmg.sh              # package the app as a drag-to-install DMG
 ```
 
 `swift run TLGLauncher` also works for development; the guide is picked up
