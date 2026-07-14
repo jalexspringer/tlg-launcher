@@ -38,7 +38,7 @@ struct TLGLauncherApp: App {
     @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 
     var body: some Scene {
-        WindowGroup("TLG Launcher") {
+        WindowGroup("Cataclysm: TLG Launcher") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 1000, minHeight: 620)

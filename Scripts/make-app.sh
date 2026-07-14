@@ -9,7 +9,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$REPO_ROOT/dist/TLG Launcher.app"
+# Finder forbids ":" in filenames, so the bundle drops it; the display
+# name in Info.plist carries the full "Cataclysm: TLG Launcher".
+APP="$REPO_ROOT/dist/Cataclysm TLG Launcher.app"
 SKIP_GUIDE="${1:-}"
 
 if [[ "$SKIP_GUIDE" != "--skip-guide" && ! -f "$REPO_ROOT/GuideDist/index.html" ]]; then
@@ -38,7 +40,7 @@ BIN="$BIN_DIR/TLGLauncher"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/TLG Launcher"
+cp "$BIN" "$APP/Contents/MacOS/Cataclysm TLG Launcher"
 
 # SwiftPM target resources (Bundle.module) — the artwork on the Play pane.
 # Bundle.module traps at launch if this bundle is missing from Resources.
@@ -59,13 +61,13 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
 	<key>CFBundleExecutable</key>
-	<string>TLG Launcher</string>
+	<string>Cataclysm TLG Launcher</string>
 	<key>CFBundleIdentifier</key>
 	<string>me.alexspringer.tlg-launcher</string>
 	<key>CFBundleName</key>
-	<string>TLG Launcher</string>
+	<string>Cataclysm: TLG Launcher</string>
 	<key>CFBundleDisplayName</key>
-	<string>TLG Launcher</string>
+	<string>Cataclysm: TLG Launcher</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>

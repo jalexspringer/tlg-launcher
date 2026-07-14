@@ -1,4 +1,4 @@
-# TLG Launcher
+# Cataclysm: TLG Launcher
 
 A native macOS launcher and update manager for
 [Cataclysm: The Last Generation](https://github.com/Cataclysm-TLG/Cataclysm-TLG).
@@ -33,15 +33,16 @@ See `Docs/ARCHITECTURE.md` for design.
 
 Download the DMG from
 [Releases](https://github.com/jalexspringer/tlg-launcher/releases) and drag
-TLG Launcher to Applications. The app is ad-hoc signed rather than notarised,
-so macOS blocks the first launch. Once only:
+Cataclysm TLG Launcher to Applications. The app is ad-hoc signed rather than
+notarised, so macOS blocks the first launch. Once only:
 
 - **macOS 15 or later**: open the app (it will be blocked), then go to
-  System Settings → Privacy & Security, scroll to the message about
-  TLG Launcher, and click **Open Anyway**.
+  System Settings → Privacy & Security, scroll to the message about the
+  launcher, and click **Open Anyway**.
 - **macOS 14**: right-click the app and choose Open.
 
-Or from a terminal: `xattr -d com.apple.quarantine "/Applications/TLG Launcher.app"`.
+Or from a terminal:
+`xattr -d com.apple.quarantine "/Applications/Cataclysm TLG Launcher.app"`.
 
 The launcher talks only to GitHub (release listings and downloads); there is
 no telemetry.
@@ -54,7 +55,7 @@ Requires macOS 14+ and the Xcode Command Line Tools (Swift 6+). No Xcode needed.
 swift build                      # compile
 swift run TLGLauncherChecks      # run the check suite
 Scripts/build-guide.sh [path]    # build the guide frontend and stage its dist/
-Scripts/make-app.sh              # assemble dist/TLG Launcher.app (ad-hoc signed)
+Scripts/make-app.sh              # assemble the .app bundle (ad-hoc signed)
 Scripts/make-dmg.sh              # package the app as a drag-to-install DMG
 ```
 

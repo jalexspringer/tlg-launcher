@@ -64,7 +64,7 @@ struct ContentView: View {
             }
         }
         .alert(
-            "TLG Launcher",
+            "Cataclysm: TLG Launcher",
             isPresented: Binding(
                 get: { model.alertMessage != nil },
                 set: { if !$0 { model.alertMessage = nil } }
