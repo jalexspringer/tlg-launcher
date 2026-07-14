@@ -33,6 +33,12 @@ struct SoundView: View {
                     StatusBadge(running: model.gameRunning)
                 }
 
+                if soundpacks.isEmpty {
+                    Text("Install a TLG version to list its bundled soundpacks.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("Enable music and sound", isOn: enabledBinding)

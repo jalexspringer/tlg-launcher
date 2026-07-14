@@ -89,6 +89,12 @@ struct TilesetsView: View {
             Toggle(target.toggleLabel, isOn: useBinding(target))
                 .disabled(model.gameRunning)
 
+            if tilesets.isEmpty {
+                Text("Install a TLG version to list its bundled tilesets.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             List(choices, selection: selectionBinding) { tileset in
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {

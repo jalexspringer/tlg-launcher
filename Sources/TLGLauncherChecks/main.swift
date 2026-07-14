@@ -504,6 +504,54 @@ let checks: [Check] = [
         try expectThrows({ try busy.setValues(["TILES": "x"]) }, GameConfigError.self)
     },
 
+    Check("options store: creates options.json on first write (fresh install, game never run)") {
+        let (paths, cleanup) = try temporaryPaths()
+        defer { cleanup() }
+        let store = GameOptionsStore(paths: paths, detector: FakeDetector(running: false))
+        try store.setValues(["SOUNDPACKS": "CC-Sounds"])
+        try expectEqual(try store.value("SOUNDPACKS"), "CC-Sounds")
+        // Nothing existed, so nothing was backed up.
+        let backups = (try? FileManager.default.contentsOfDirectory(atPath: paths.configBackupsDir.path)) ?? []
+        try expectEqual(backups.count, 0)
+    },
+
+    // Launcher self-update ----------------------------------------------------
+
+    Check("launcher update: version comparison and tag normalisation") {
+        try expect(LauncherUpdateChecker.isNewer("0.2.0", than: "0.1.0"), "0.2.0 > 0.1.0")
+        try expect(LauncherUpdateChecker.isNewer("0.10.0", than: "0.9.1"), "numeric, not lexicographic")
+        try expect(LauncherUpdateChecker.isNewer("1.0", than: "0.9.9"), "short major bump")
+        try expect(!LauncherUpdateChecker.isNewer("0.1.0", than: "0.1.0"), "equal is not newer")
+        try expect(!LauncherUpdateChecker.isNewer("0.1", than: "0.1.0"), "padded equal is not newer")
+        try expect(!LauncherUpdateChecker.isNewer("nightly", than: "0.1.0"), "malformed tag never wins")
+        try expectEqual(LauncherUpdateChecker.normalise("v0.2.0"), "0.2.0")
+    },
+
+    Check("launcher update: picks newest stable release, quiet on failure") {
+        struct CannedClient: ReleaseFetching {
+            var releases: [GameRelease]?
+            func fetchReleases(count: Int) async throws -> [GameRelease] {
+                guard let releases else { throw ReleaseClientError.httpStatus(403) }
+                return releases
+            }
+        }
+        func release(_ tag: String, prerelease: Bool = false, draft: Bool = false) -> GameRelease {
+            GameRelease(tagName: tag, name: tag, prerelease: prerelease, draft: draft,
+                        publishedAt: Date(timeIntervalSince1970: 0), htmlURL: nil, body: nil, assets: [])
+        }
+        let checker = LauncherUpdateChecker(client: CannedClient(releases: [
+            release("v0.3.0", prerelease: true),
+            release("v0.2.0"),
+            release("v0.1.0"),
+        ]))
+        let update = await checker.check(currentVersion: "0.1.0")
+        try expectEqual(update?.version, "0.2.0")
+        try expectEqual(update?.url, LauncherUpdateChecker.releasesPage)
+        try expectEqual(await checker.check(currentVersion: "0.2.0"), nil)
+        let offline = LauncherUpdateChecker(client: CannedClient(releases: nil))
+        try expectEqual(await offline.check(currentVersion: "0.1.0"), nil)
+    },
+
     Check("tilesets: tileset.txt parses, iso detected from tile_config, user pack shadows bundled") {
         let (paths, cleanup) = try temporaryPaths()
         defer { cleanup() }

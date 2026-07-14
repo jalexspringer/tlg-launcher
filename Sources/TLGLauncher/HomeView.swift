@@ -49,6 +49,41 @@ struct HomeView: View {
                 StatusBadge(running: model.gameRunning)
             }
 
+            if let update = model.launcherUpdate {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                    Text("TLG Launcher \(update.version) is available.")
+                    Link("View release", destination: update.url)
+                }
+                .font(.callout)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            if model.launcherState.activeTag == nil {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Get started").font(.headline)
+                        Text("No TLG version is installed yet. Your worlds, saves and settings live outside the app, so they survive every update — and the launcher backs them up before each one anyway.")
+                            .foregroundStyle(.secondary)
+                        Button {
+                            if let latest = model.latestRelease {
+                                Task { await model.install(latest) }
+                            }
+                        } label: {
+                            Label(
+                                model.latestRelease.map { "Install \($0.shortLabel)" }
+                                    ?? (model.checkFailed == nil ? "Finding latest release…" : "Release check failed"),
+                                systemImage: "arrow.down.circle"
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.latestRelease == nil || model.isBusy)
+                    }
+                    .padding(6)
+                }
+            }
+
             GroupBox {
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                     GridRow {
@@ -67,21 +102,24 @@ struct HomeView: View {
                             }
                         }
                     }
-                    GridRow {
-                        Text("Interface font").foregroundStyle(.secondary)
-                        Text(interfaceFontLabel)
-                    }
-                    GridRow {
-                        Text("Colour scheme").foregroundStyle(.secondary)
-                        Text(colorSchemeLabel)
-                    }
-                    GridRow {
-                        Text("Tileset").foregroundStyle(.secondary)
-                        Text(tilesetLabel)
-                    }
-                    GridRow {
-                        Text("Soundpack").foregroundStyle(.secondary)
-                        Text(soundpackLabel)
+                    // Config rows only mean something once a version exists.
+                    if model.launcherState.activeTag != nil {
+                        GridRow {
+                            Text("Interface font").foregroundStyle(.secondary)
+                            Text(interfaceFontLabel)
+                        }
+                        GridRow {
+                            Text("Colour scheme").foregroundStyle(.secondary)
+                            Text(colorSchemeLabel)
+                        }
+                        GridRow {
+                            Text("Tileset").foregroundStyle(.secondary)
+                            Text(tilesetLabel)
+                        }
+                        GridRow {
+                            Text("Soundpack").foregroundStyle(.secondary)
+                            Text(soundpackLabel)
+                        }
                     }
                     if let checked = model.lastChecked {
                         GridRow {

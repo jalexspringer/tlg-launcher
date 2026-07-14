@@ -24,6 +24,8 @@ A native macOS launcher and update manager for
   the version you play and works offline; falls back to the remote data
   otherwise.
 - Backups and restore, with safety copies before every restore.
+- Notifies when a newer launcher release is available (a banner linking to
+  the release — no self-modifying auto-update).
 
 See `Docs/ARCHITECTURE.md` for design.
 

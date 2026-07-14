@@ -19,6 +19,7 @@ final class AppModel {
     var releases: [GameRelease] = []
     var lastChecked: Date?
     var checkFailed: String?
+    var launcherUpdate: LauncherUpdate?
 
     // Install state
     var launcherState: LauncherState
@@ -96,12 +97,22 @@ final class AppModel {
 
     func checkForUpdates() async {
         checkFailed = nil
+        Task { await checkForLauncherUpdate() }
         do {
             releases = try await client.fetchReleases(count: 30)
             lastChecked = Date()
         } catch {
             checkFailed = String(describing: error)
         }
+    }
+
+    /// Quiet self-update check: shows a banner on the Play pane when a newer
+    /// launcher release exists. Skipped in `swift run` (no bundle version).
+    private func checkForLauncherUpdate() async {
+        guard let current = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String else { return }
+        launcherUpdate = await LauncherUpdateChecker().check(currentVersion: current)
     }
 
     // MARK: Install / update / play

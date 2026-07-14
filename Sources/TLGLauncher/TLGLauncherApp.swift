@@ -21,7 +21,20 @@ final class QuitGuard: NSObject, NSApplicationDelegate {
 
 @main
 struct TLGLauncherApp: App {
-    @State private var model = AppModel()
+    // Scripted testing: open ... --args -launcherSupport /tmp/a -gameUserData /tmp/b
+    // runs against alternate roots (e.g. empty ones for the first-run flow).
+    private static func pathsFromArguments() -> LauncherPaths {
+        let defaults = UserDefaults.standard
+        guard let support = defaults.string(forKey: "launcherSupport"),
+              let userData = defaults.string(forKey: "gameUserData")
+        else { return .standard() }
+        return LauncherPaths(
+            launcherSupport: URL(fileURLWithPath: support, isDirectory: true),
+            gameUserData: URL(fileURLWithPath: userData, isDirectory: true)
+        )
+    }
+
+    @State private var model = AppModel(paths: Self.pathsFromArguments())
     @NSApplicationDelegateAdaptor(QuitGuard.self) private var quitGuard
 
     var body: some Scene {

@@ -47,13 +47,21 @@ public struct GameOptionsStore: Sendable {
 
     /// Rewrites options.json with the given values, preserving every other
     /// entry, unknown fields and entry order. Missing entries are appended
-    /// (the game fills in its own metadata on next save).
+    /// (the game fills in its own metadata on next save). A missing file is
+    /// created — the game treats a partial options.json as overrides on its
+    /// defaults and completes it on its next save.
     public func setValues(_ values: [String: String]) throws {
         guard !detector.isGameRunning() else { throw GameConfigError.gameRunning }
-        guard var entries = try loadEntries() else {
-            throw GameConfigError.malformedFile("options.json (missing — run the game once first)")
+        var entries: [Any]
+        if let existing = try loadEntries() {
+            entries = existing
+            try ConfigFileBackup.backUp(paths.optionsJSON, paths: paths, at: now())
+        } else {
+            entries = []
+            try FileManager.default.createDirectory(
+                at: paths.configDir, withIntermediateDirectories: true
+            )
         }
-        try ConfigFileBackup.backUp(paths.optionsJSON, paths: paths, at: now())
         var remaining = values
         for (index, item) in entries.enumerated() {
             guard var entry = item as? [String: Any],
