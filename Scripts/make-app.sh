@@ -16,10 +16,24 @@ if [[ "$SKIP_GUIDE" != "--skip-guide" && ! -f "$REPO_ROOT/GuideDist/index.html" 
     "$REPO_ROOT/Scripts/build-guide.sh"
 fi
 
-echo "Building release binary..."
-swift build --package-path "$REPO_ROOT" -c release --product TLGLauncher
+echo "Building release binary (universal)..."
+# Two --triple builds joined with lipo: `swift build --arch a --arch b`
+# needs Xcode's xcbuild, which Command Line Tools do not ship.
+for triple in arm64-apple-macosx x86_64-apple-macosx; do
+    swift build --package-path "$REPO_ROOT" -c release \
+        --triple "$triple" --product TLGLauncher
+done
 
-BIN_DIR="$(swift build --package-path "$REPO_ROOT" -c release --show-bin-path)"
+BIN_DIR="$REPO_ROOT/.build/universal-release"
+mkdir -p "$BIN_DIR"
+lipo -create \
+    "$REPO_ROOT/.build/arm64-apple-macosx/release/TLGLauncher" \
+    "$REPO_ROOT/.build/x86_64-apple-macosx/release/TLGLauncher" \
+    -output "$BIN_DIR/TLGLauncher"
+# Bundled resources are arch-independent; take them from the arm64 build.
+rm -rf "$BIN_DIR/TLGLauncher_TLGLauncher.bundle"
+ditto "$REPO_ROOT/.build/arm64-apple-macosx/release/TLGLauncher_TLGLauncher.bundle" \
+      "$BIN_DIR/TLGLauncher_TLGLauncher.bundle"
 BIN="$BIN_DIR/TLGLauncher"
 
 rm -rf "$APP"
@@ -30,6 +44,8 @@ cp "$BIN" "$APP/Contents/MacOS/TLG Launcher"
 # Bundle.module traps at launch if this bundle is missing from Resources.
 ditto "$BIN_DIR/TLGLauncher_TLGLauncher.bundle" \
       "$APP/Contents/Resources/TLGLauncher_TLGLauncher.bundle"
+
+cp "$REPO_ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 if [[ -f "$REPO_ROOT/GuideDist/index.html" ]]; then
     ditto "$REPO_ROOT/GuideDist" "$APP/Contents/Resources/GuideDist"
@@ -50,6 +66,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<string>TLG Launcher</string>
 	<key>CFBundleDisplayName</key>
 	<string>TLG Launcher</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

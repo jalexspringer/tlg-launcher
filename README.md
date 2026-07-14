@@ -32,8 +32,17 @@ See `Docs/ARCHITECTURE.md` for design.
 Download the DMG from
 [Releases](https://github.com/jalexspringer/tlg-launcher/releases) and drag
 TLG Launcher to Applications. The app is ad-hoc signed rather than notarised,
-so on first launch macOS will refuse to open it normally — right-click the
-app, choose Open, and confirm (once).
+so macOS blocks the first launch. Once only:
+
+- **macOS 15 or later**: open the app (it will be blocked), then go to
+  System Settings → Privacy & Security, scroll to the message about
+  TLG Launcher, and click **Open Anyway**.
+- **macOS 14**: right-click the app and choose Open.
+
+Or from a terminal: `xattr -d com.apple.quarantine "/Applications/TLG Launcher.app"`.
+
+The launcher talks only to GitHub (release listings and downloads); there is
+no telemetry.
 
 ## Building
 
@@ -64,8 +73,16 @@ Cataclysm: The Last Generation is created by
 The artwork shown in the launcher is from the TLG project. This launcher is
 an independent fan tool, not an official TLG release.
 
+The bundled guide is a TLG adaptation of
+[The Hitchhiker's Guide to the Cataclysm](https://github.com/nornagon/cdda-guide)
+by nornagon (GPL-3.0; adapted source at
+[jalexspringer/tlg-guide](https://github.com/jalexspringer/tlg-guide)), with
+game data in the format of
+[RenechCDDA/tlg-data](https://github.com/RenechCDDA/tlg-data).
+
 ## Licence
 
 [CC BY-SA 4.0](LICENSE), matching the game's own CC-BY-SA licensing (the
 repository redistributes TLG artwork, which stays under the game project's
-terms and attribution).
+terms and attribution). The guide staged into built apps remains GPL-3.0,
+per its upstream.
